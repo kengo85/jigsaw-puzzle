@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>たのしいジグソーパズル</title>
     <style>
-        body { text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; background: #eef7f2; color: #333; margin: 0; padding: 10px; overflow: hidden; }
+        html, body { height: 100%; box-sizing: border-box; }
+        *, *:before, *:after { box-sizing: inherit; }
+        
+        body { text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; background: #eef7f2; color: #333; margin: 0; padding: 10px 10px 60px 10px; /* 画面下にしっかり余白を確保 */ overflow: hidden; }
         h1 { color: #2a7a4a; font-size: 20px; margin: 5px 0; }
         .menu-group { background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: inline-block; margin-bottom: 10px; z-index: 100; position: relative; }
         label, button { font-size: 14px; font-weight: bold; padding: 6px 12px; margin: 3px; border-radius: 8px; border: none; cursor: pointer; display: inline-block; vertical-align: middle; }
@@ -16,7 +19,7 @@
         
         #timer-display { font-size: 18px; font-weight: bold; color: #2a7a4a; margin-left: 10px; display: inline-block; vertical-align: middle; }
 
-        #game-area { position: relative; width: 100%; height: calc(100vh - 120px); background: #ddd; border: 4px solid #2a7a4a; border-radius: 8px; overflow: hidden; }
+        #game-area { position: relative; width: 100%; height: calc(100vh - 180px); background: #ddd; border: 4px solid #2a7a4a; border-radius: 8px; overflow: hidden; }
         #canvas { display: block; position: absolute; top: 0; left: 0; }
         
         #clear-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 20px 40px; border-radius: 20px; border: 5px solid #ffeb3b; font-size: 28px; font-weight: bold; color: #ff5722; animation: pop 0.5s ease-out; pointer-events: none; z-index: 200; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
@@ -75,13 +78,11 @@
         let showHint = false;
         let isCleared = false;
 
-        // タイマー用の変数
         let startTime;
         let timerInterval;
 
-        // 全体の「格子状の線（凸凹）」データを保持するオブジェクト
-        let hCurves = []; // 横方向の境界線
-        let vCurves = []; // 縦方向の境界線
+        let hCurves = []; 
+        let vCurves = []; 
 
         const samples = [
             'https://images.unsplash.com/photo-1591160690555-5debfba289f0?q=80&w=400&auto=format&fit=crop',
@@ -122,7 +123,6 @@
         }
         window.addEventListener('resize', () => { resizeCanvas(); draw(); });
 
-        // タイマー開始
         function startTimer() {
             clearInterval(timerInterval);
             startTime = Date.now();
@@ -136,20 +136,15 @@
             timerDisplay.textContent = `⏱ ${m}:${s}`;
         }
 
-        // --- 改善ポイント：パズル全体の共通の凸凹データを生成する ---
         function generateGridCurves(pw, ph) {
             hCurves = [];
             vCurves = [];
-
-            // 横の境界線データを生成
             for (let r = 1; r < rows; r++) {
                 hCurves[r] = [];
                 for (let c = 0; c < cols; c++) {
                     hCurves[r][c] = generateSingleCurveData(pw, ph, Math.random() > 0.5 ? 1 : -1, true);
                 }
             }
-
-            // 縦の境界線データを生成
             for (let r = 0; r < rows; r++) {
                 vCurves[r] = [];
                 for (let c = 1; c < cols; c++) {
@@ -158,21 +153,12 @@
             }
         }
 
-        // 1つのジグソーパズルの耳（凸凹）の波形データを計算
         function generateSingleCurveData(pw, ph, dir, isHorizontal) {
             const size = Math.min(pw, ph);
-            const tSize = size * 0.22; // 耳の飛び出しサイズ
-            const nw = size * 0.12;    // 首の細さ
-            const hw = size * 0.22;    // 頭の広さ
-
-            // 相対座標での制御点を計算
-            // 首から頭にかけて丸く曲がるベジェ曲線のパラメータ
-            return {
-                dir: dir,
-                nw: nw,
-                hw: hw,
-                tSize: tSize
-            };
+            const tSize = size * 0.22; 
+            const nw = size * 0.12;    
+            const hw = size * 0.22;    
+            return { dir: dir, nw: nw, hw: hw, tSize: tSize };
         }
 
         function initGame() {
@@ -185,7 +171,6 @@
             const pw = puzzleSize / cols;
             const ph = puzzleSize / rows;
 
-            // 共通のグリッド（凸凹）波形を作成
             generateGridCurves(pw, ph);
 
             for (let r = 0; r < rows; r++) {
@@ -200,7 +185,6 @@
                 }
             }
 
-            // 初期位置が中央の完成枠と重なっていたら外側に散らす
             pieces.forEach(p => {
                 if(p.x > boardX - p.w && p.x < boardX + puzzleSize && p.y > boardY - p.h && p.y < boardY + puzzleSize) {
                     p.x = (Math.random() > 0.5) ? Math.random()*(boardX-p.w) : boardX+puzzleSize+Math.random()*(canvas.width-(boardX+puzzleSize)-p.w);
@@ -212,50 +196,28 @@
             draw();
         }
 
-        // --- 改善ポイント：共通データを用いて、絶対座標上に正確に外周パスを描く ---
         function drawPiecePath(p, x, y) {
             ctx.beginPath();
-            
-            // 1. 左上からスタート
             ctx.moveTo(x, y);
 
-            // 2. 上の辺（左から右へ）
-            if (p.r === 0) {
-                ctx.lineTo(x + p.w, y);
-            } else {
-                drawTabSegment(x, y, x + p.w, y, hCurves[p.r][p.c], true, false);
-            }
+            if (p.r === 0) ctx.lineTo(x + p.w, y);
+            else drawTabSegment(x, y, x + p.w, y, hCurves[p.r][p.c], true, false);
 
-            // 3. 右の辺（上から下へ）
-            if (p.c === cols - 1) {
-                ctx.lineTo(x + p.w, y + p.h);
-            } else {
-                drawTabSegment(x + p.w, y, x + p.w, y + p.h, vCurves[p.r][p.c + 1], false, false);
-            }
+            if (p.c === cols - 1) ctx.lineTo(x + p.w, y + p.h);
+            else drawTabSegment(x + p.w, y, x + p.w, y + p.h, vCurves[p.r][p.c + 1], false, false);
 
-            // 4. 下の辺（右から左へ反転して描く）
-            if (p.r === rows - 1) {
-                ctx.lineTo(x, y + p.h);
-            } else {
-                drawTabSegment(x + p.w, y + p.h, x, y + p.h, hCurves[p.r + 1][p.c], true, true);
-            }
+            if (p.r === rows - 1) ctx.lineTo(x, y + p.h);
+            else drawTabSegment(x + p.w, y + p.h, x, y + p.h, hCurves[p.r + 1][p.c], true, true);
 
-            // 5. 左の辺（下から上へ反転して描く）
-            if (p.c === 0) {
-                ctx.lineTo(x, y);
-            } else {
-                drawTabSegment(x, y + p.h, x, y, vCurves[p.r][p.c], false, true);
-            }
+            if (p.c === 0) ctx.lineTo(x, y);
+            else drawTabSegment(x, y + p.h, x, y, vCurves[p.r][p.c], false, true);
 
             ctx.closePath();
         }
 
-        // 線分ごとのベジェ曲線変形処理
         function drawTabSegment(x1, y1, x2, y2, curve, isHorizontal, isReverse) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
-            
-            // 反転フラグ（右から左、または下から上へ進む場合）による向きの調整
             const globalDir = isReverse ? -1 : 1;
             const dir = curve.dir * globalDir;
 
@@ -267,11 +229,9 @@
 
             const hnx = isHorizontal ? curve.nw : 0;
             const hny = isHorizontal ? 0 : curve.nw;
-            
             const awx = isHorizontal ? curve.hw : 0;
             const awy = isHorizontal ? 0 : curve.hw;
 
-            // 進行方向に基づいて制御点を追加していく
             ctx.bezierCurveTo(cx - hnx*globalDir + nx*0.2, cy - hny*globalDir + ny*0.2,  cx - awx*globalDir + nx, cy - awy*globalDir + ny,  cx + nx, cy + ny);
             ctx.bezierCurveTo(cx + awx*globalDir + nx, cy + awy*globalDir + ny,  cx + hnx*globalDir + nx*0.2, cy + hny*globalDir + ny*0.2, x2, y2);
         }
@@ -279,11 +239,9 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 完成枠のグレー背景
             ctx.fillStyle = "rgba(230,230,230,0.7)";
             ctx.fillRect(boardX, boardY, puzzleSize, puzzleSize);
 
-            // 完成枠内のグリッド線を描画（隙間のない正しい形状の枠線）
             ctx.save();
             ctx.lineWidth = 1;
             ctx.strokeStyle = "rgba(0,0,0,0.2)";
@@ -293,7 +251,6 @@
             });
             ctx.restore();
 
-            // 2. おてほん
             if (showHint) {
                 ctx.save();
                 ctx.globalAlpha = 0.35;
@@ -301,18 +258,36 @@
                 ctx.restore();
             }
 
-            // 3. ピース描画（ロックされた完成ピースが下、動かせるピースが上）
             pieces.forEach(p => { if (p.isLocked) drawSinglePiece(p); });
             pieces.forEach(p => { if (!p.isLocked) drawSinglePiece(p); });
         }
 
+        // --- 修正ポイント：切り出す元の画像範囲もマージンを計算して拡大して描画する ---
         function drawSinglePiece(p) {
+            // パズル全体の1つの耳（凸）の最大サイズをマージンとして用意
+            const size = Math.min(p.w, p.h);
+            const maxTabSize = size * 0.25; 
+
             ctx.save();
+            // 先に絶対座標にパズルの複雑な外周を描画してクリップ
             drawPiecePath(p, p.x, p.y);
             ctx.clip();
-            ctx.drawImage(img, p.sx, p.sy, p.sw, p.sh, p.x, p.y, p.w, p.h);
+            
+            // クリップした枠の中に写真を描く。
+            // 凸部分（maxTabSize）もカバーできるよう、切り出し元（s系）と描画先（p.x系）の両方を少し広げてマッピングする
+            const imgRatioX = img.width / puzzleSize;
+            const imgRatioY = img.height / puzzleSize;
+
+            ctx.drawImage(
+                img, 
+                p.sx - maxTabSize * imgRatioX, p.sy - maxTabSize * imgRatioY, // 少し広く切り出す
+                p.sw + maxTabSize * 2 * imgRatioX, p.sh + maxTabSize * 2 * imgRatioY, 
+                p.x - maxTabSize, p.y - maxTabSize, // 少し広く描く
+                p.w + maxTabSize * 2, p.h + maxTabSize * 2
+            );
             ctx.restore();
 
+            // 外枠の線を引く
             ctx.save();
             drawPiecePath(p, p.x, p.y);
             ctx.lineWidth = p.isLocked ? 1 : 2.5; 
@@ -380,23 +355,18 @@
             } catch(e) {}
         }
 
-        // クリア判定＆タイムの出力
         function checkClear() {
             if (pieces.every(p => p.isLocked) && !isCleared) {
                 isCleared = true;
-                clearInterval(timerInterval); // タイマー停止
-                
+                clearInterval(timerInterval); 
                 const totalSeconds = Math.floor((Date.now() - startTime) / 1000);
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
-                
-                // ひらがな・カタカナ中心のタイムメッセージを出力
                 if(minutes > 0) {
                     timeResult.textContent = `かかった時間：${minutes}ふん ${seconds}びょう`;
                 } else {
                     timeResult.textContent = `かかった時間：${seconds}びょう`;
                 }
-                
                 clearMessage.style.display = 'block';
             }
         }
