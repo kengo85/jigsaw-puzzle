@@ -2,20 +2,22 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>たのしいジグソーパズル</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>たのしいジグソーパズル（修正版）</title>
     <style>
-        body { text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; background: #eef7f2; color: #333; margin: 0; padding: 20px; }
-        h1 { color: #2a7a4a; font-size: 24px; margin-bottom: 10px; }
-        .menu-group { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: inline-block; margin-bottom: 15px; }
-        label, button { font-size: 16px; font-weight: bold; padding: 8px 16px; margin: 5px; border-radius: 8px; border: none; cursor: pointer; }
-        select { font-size: 16px; padding: 8px; border-radius: 8px; border: 2px solid #ccc; }
+        body { text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; background: #eef7f2; color: #333; margin: 0; padding: 10px; overflow: hidden; /* 画面全体のスクロールを防ぐ */ }
+        h1 { color: #2a7a4a; font-size: 20px; margin: 5px 0; }
+        .menu-group { background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: inline-block; margin-bottom: 10px; z-index: 100; position: relative; }
+        label, button { font-size: 14px; font-weight: bold; padding: 6px 12px; margin: 3px; border-radius: 8px; border: none; cursor: pointer; display: inline-block; vertical-align: middle; }
+        select { font-size: 14px; padding: 6px; border-radius: 8px; border: 2px solid #ccc; vertical-align: middle; }
         .btn-green { background: #4caf50; color: white; }
         .btn-blue { background: #2196f3; color: white; }
         #file-input { display: none; }
-        #canvas-container { position: relative; display: inline-block; margin-top: 10px; background: #ddd; border: 4px solid #2a7a4a; border-radius: 8px; overflow: hidden; }
-        #canvas { display: block; background: #fff; }
-        #clear-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.9); padding: 20px 40px; border-radius: 20px; border: 5px solid #ffeb3b; font-size: 32px; font-weight: bold; color: #ff5722; animation: pop 0.5s ease-out; pointer-events: none; }
+        
+        #game-area { position: relative; width: 100%; height: calc(100vh - 120px); /* メニュー下の全エリア */ background: #ddd; border: 4px solid #2a7a4a; border-radius: 8px; overflow: hidden; }
+        #canvas { display: block; position: absolute; top: 0; left: 0; }
+        
+        #clear-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 20px 40px; border-radius: 20px; border: 5px solid #ffeb3b; font-size: 32px; font-weight: bold; color: #ff5722; animation: pop 0.5s ease-out; pointer-events: none; z-index: 200; }
         @keyframes pop { 0% { transform: translate(-50%, -50%) scale(0); } 100% { transform: translate(-50%, -50%) scale(1); } }
     </style>
 </head>
@@ -26,28 +28,25 @@
     <div class="menu-group">
         <label for="difficulty">むずかしさ：</label>
         <select id="difficulty">
-            <option value="3">かんたん (9ピース)</option>
-            <option value="4" selected>ふつう (16ピース)</option>
-            <option value="6">むずかしい (36ピース)</option>
+            <option value="3">かんたん (9)</option>
+            <option value="4" selected>ふつう (16)</option>
+            <option value="5">むずかしい (25)</option>
         </select>
-        
-        <button class="btn-green" id="btn-sample">ちがう絵にする</button>
-        <button class="btn-blue" onclick="document.getElementById('file-input').click()">じぶんの写真をつかう</button>
+        <button class="btn-green" id="btn-sample">ちがう絵</button>
+        <button class="btn-blue" onclick="document.getElementById('file-input').click()">写真</button>
         <input type="file" id="file-input" accept="image/*">
-        
-        <button class="btn-blue" id="btn-hint">👁 おてほん（うっすら）</button>
+        <button class="btn-blue" id="btn-hint">👁 おてほん</button>
     </div>
 
-    <br>
-
-    <div id="canvas-container">
-        <canvas id="canvas" width="700" height="500"></canvas>
+    <div id="game-area">
+        <canvas id="canvas"></canvas>
         <div id="clear-message">🎉 クリア！おめでとう！ 🎉</div>
     </div>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const gameArea = document.getElementById('game-area');
         const difficultySelect = document.getElementById('difficulty');
         const fileInput = document.getElementById('file-input');
         const btnSample = document.getElementById('btn-sample');
@@ -59,40 +58,37 @@
         let draggedPiece = null;
         let offsetX, offsetY;
         
-        // パズル表示エリアの設定
-        const puzzleW = 400; 
-        const puzzleH = 400;
-        const boardX = 20; // 左側にパズル台
-        const boardY = 50;
+        // パズル表示（完成枠）のサイズと中央座標
+        const puzzleSize = 360; 
+        let boardX, boardY;
 
         let rows = 4;
         let cols = 4;
         let showHint = false;
         let isCleared = false;
 
-        // サンプル画像の配列（子どもが喜びそうなランダム画像）
+        // 子どもが喜びそうなランダム画像（トイプードル系に変更）
         const samples = [
-            'https://picsum.photos/400/400?random=1',
-            'https://picsum.photos/400/400?random=2',
-            'https://picsum.photos/400/400?random=3'
+            'https://images.unsplash.com/photo-1591160690555-5debfba289f0?q=80&w=400&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=400&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1598133894008-61f7fdb8cc3a?q=80&w=400&auto=format&fit=crop'
         ];
         let sampleIndex = 0;
 
-        // 初期読み込み
         img.crossOrigin = "anonymous"; 
         img.src = samples[sampleIndex];
         img.onload = initGame;
 
-        // イベント設定
         difficultySelect.addEventListener('change', () => { rows = cols = parseInt(difficultySelect.value); initGame(); });
         btnSample.addEventListener('click', () => { sampleIndex = (sampleIndex + 1) % samples.length; img.src = samples[sampleIndex]; });
-        btnHint.addEventListener('mousedown', () => { showHint = true; draw(); });
-        btnHint.addEventListener('mouseup', () => { showHint = false; draw(); });
-        btnHint.addEventListener('mouseleave', () => { showHint = false; draw(); });
-        
-        // タッチ操作にも対応（スマホ用）
-        btnHint.addEventListener('touchstart', (e) => { e.preventDefault(); showHint = true; draw(); });
-        btnHint.addEventListener('touchend', () => { showHint = false; draw(); });
+        btnHint.addEventListener('mousedown', toggleHintTrue);
+        btnHint.addEventListener('mouseup', toggleHintFalse);
+        btnHint.addEventListener('mouseleave', toggleHintFalse);
+        btnHint.addEventListener('touchstart', (e) => { e.preventDefault(); toggleHintTrue(); });
+        btnHint.addEventListener('touchend', toggleHintFalse);
+
+        function toggleHintTrue() { showHint = true; draw(); }
+        function toggleHintFalse() { showHint = false; draw(); }
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -102,243 +98,232 @@
             reader.readAsDataURL(file);
         });
 
-        // ゲームの初期化
+        // 画面サイズに合わせてキャンバスをリサイズ
+        function resizeCanvas() {
+            canvas.width = gameArea.clientWidth;
+            canvas.height = gameArea.clientHeight;
+            boardX = (canvas.width - puzzleSize) / 2; // 中央配置
+            boardY = (canvas.height - puzzleSize) / 2;
+        }
+        window.addEventListener('resize', () => { resizeCanvas(); draw(); });
+
         function initGame() {
+            resizeCanvas();
             pieces = [];
             isCleared = false;
             clearMessage.style.display = 'none';
 
-            const pw = puzzleW / cols;
-            const ph = puzzleH / rows;
+            const pw = puzzleSize / cols;
+            const ph = puzzleSize / rows;
 
-            // 各ピースの「凸凹の向き」をランダムに決定 (-1: 凹, 0: 平, 1: 凸)
-            // 内部の辺の凸凹を隣同士で一致させるためのマトリックス
-            let vEdges = []; // 縦の辺
-            let hEdges = []; // 横の辺
-            for(let r=0; r<=rows; r++) { hEdges[r] = []; for(let c=0; c<cols; c++) hEdges[r][c] = (r==0 || r==rows) ? 0 : (Math.random() > 0.5 ? 1 : -1); }
-            for(let r=0; r<rows; r++) { vEdges[r] = []; for(let c=0; c<=cols; c++) vEdges[r][c] = (c==0 || c==cols) ? 0 : (Math.random() > 0.5 ? 1 : -1); }
+            // 凸凹のマトリックスを作成
+            let hEdges = []; for(let r=0; r<=rows; r++) { hEdges[r] = []; for(let c=0; c<cols; c++) hEdges[r][c] = (r==0 || r==rows) ? 0 : (Math.random() > 0.5 ? 1 : -1); }
+            let vEdges = []; for(let r=0; r<rows; r++) { vEdges[r] = []; for(let c=0; c<=cols; c++) vEdges[r][c] = (c==0 || c==cols) ? 0 : (Math.random() > 0.5 ? 1 : -1); }
 
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
-                    // 正しい位置（ゴール位置）
-                    const targetX = boardX + c * pw;
-                    const targetY = boardY + r * ph;
-                    
-                    // 右側の空きスペースにバラバラに配置する初期位置
-                    const randomX = puzzleW + 60 + Math.random() * (canvas.width - puzzleW - pw - 80);
-                    const randomY = boardY + Math.random() * (canvas.height - ph - 80);
-
                     pieces.push({
                         r: r, c: c,
-                        sx: c * (img.width / cols), sy: r * (img.height / rows), // 画像切り出し位置
-                        sw: img.width / cols, sh: img.height / rows,
-                        x: randomX, y: randomY, // 現在の位置
-                        tx: targetX, ty: targetY, // 目標の位置
-                        w: pw, h: ph,
-                        isLocked: false, // ピタッとはまったらtrue
-                        edges: {
-                            top: hEdges[r][c],
-                            right: vEdges[r][c+1],
-                            bottom: hEdges[r+1][c],
-                            left: vEdges[r][c]
-                        }
+                        sx: c * (img.width / cols), sy: r * (img.height / rows), sw: img.width / cols, sh: img.height / rows,
+                        // 初期位置：中央の枠を避けて、画面全体にランダムに散らす
+                        x: Math.random() * (canvas.width - pw), y: Math.random() * (canvas.height - ph),
+                        tx: boardX + c * pw, ty: boardY + r * ph, // 目標
+                        w: pw, h: ph, isLocked: false,
+                        edges: { top: hEdges[r][c], right: vEdges[r][c+1], bottom: hEdges[r+1][c], left: vEdges[r][c] }
                     });
                 }
             }
-            // 描画順をランダムにして重なりを自然にする
+            // 枠と重なっているピースを外側に押し出す簡易調整
+            pieces.forEach(p => {
+                if(p.x > boardX - p.w && p.x < boardX + puzzleSize && p.y > boardY - p.h && p.y < boardY + puzzleSize) {
+                    p.x = (Math.random() > 0.5) ? Math.random()*(boardX-p.w) : boardX+puzzleSize+Math.random()*(canvas.width-(boardX+puzzleSize)-p.w);
+                    p.y = (Math.random() > 0.5) ? Math.random()*(boardY-p.h) : boardY+puzzleSize+Math.random()*(canvas.height-(boardY+puzzleSize)-p.h);
+                }
+            });
             pieces.sort(() => Math.random() - 0.5);
             draw();
         }
 
-        // ピースの輪郭をベジェ曲線で描く関数
-        function drawPiecePath(p, x, y) {
-            ctx.beginPath();
+        // --- 修正ポイント：滑らかで一般的なジグソーパズルの形を描画 ---
+        function drawPiecePath(p, x, y, pathOnly=false) {
+            if(!pathOnly) ctx.beginPath();
             ctx.moveTo(x, y);
             
-            const pex = 0.2; // 凸凹の根元の幅
-            const pey = 0.2; // 凸凹の飛び出し具合
+            // タブ（凸凹）の大きさの定義
+            const tabSize = Math.min(p.w, p.h) * 0.28; // タブの高さ/深さ
+            const neckW = Math.min(p.w, p.h) * 0.15;   // 首の細さ
+            const headW = Math.min(p.w, p.h) * 0.25;   // 頭の広さ
 
             // 上の辺
             if (p.edges.top === 0) ctx.lineTo(x + p.w, y);
-            else {
-                ctx.lineTo(x + p.w * 0.35, y);
-                ctx.bezierCurveTo(x + p.w * 0.35, y - p.h * pey * p.edges.top,  x + p.w * 0.45, y - p.h * pey * p.edges.top,  x + p.w * 0.45, y);
-                ctx.lineTo(x + p.w * 0.55, y);
-                ctx.bezierCurveTo(x + p.w * 0.55, y - p.h * pey * p.edges.top,  x + p.w * 0.65, y - p.h * pey * p.edges.top,  x + p.w * 0.65, y);
-                ctx.lineTo(x + p.w, y);
-            }
+            else drawTab(x, y, x + p.w, y, p.edges.top, true);
+
             // 右の辺
             if (p.edges.right === 0) ctx.lineTo(x + p.w, y + p.h);
-            else {
-                ctx.lineTo(x + p.w, y + p.h * 0.35);
-                ctx.bezierCurveTo(x + p.w + p.w * pex * p.edges.right, y + p.h * 0.35,  x + p.w + p.w * pex * p.edges.right, y + p.h * 0.45,  x + p.w, y + p.h * 0.45);
-                ctx.lineTo(x + p.w, y + p.h * 0.55);
-                ctx.bezierCurveTo(x + p.w + p.w * pex * p.edges.right, y + p.h * 0.55,  x + p.w + p.w * pex * p.edges.right, y + p.h * 0.65,  x + p.w, y + p.h * 0.65);
-                ctx.lineTo(x + p.w, y + p.h);
-            }
+            else drawTab(x + p.w, y, x + p.w, y + p.h, p.edges.right, false);
+
             // 下の辺
             if (p.edges.bottom === 0) ctx.lineTo(x, y + p.h);
-            else {
-                ctx.lineTo(x + p.w * 0.65, y + p.h);
-                ctx.bezierCurveTo(x + p.w * 0.65, y + p.h + p.h * pey * p.edges.bottom,  x + p.w * 0.55, y + p.h + p.h * pey * p.edges.bottom,  x + p.w * 0.55, y + p.h);
-                ctx.lineTo(x + p.w * 0.45, y + p.h);
-                ctx.bezierCurveTo(x + p.w * 0.45, y + p.h + p.h * pey * p.edges.bottom,  x + p.w * 0.35, y + p.h + p.h * pey * p.edges.bottom,  x + p.w * 0.35, y + p.h);
-                ctx.lineTo(x, y + p.h);
-            }
+            else drawTab(x + p.w, y + p.h, x, y + p.h, p.edges.bottom, true);
+
             // 左の辺
             if (p.edges.left === 0) ctx.lineTo(x, y);
-            else {
-                ctx.lineTo(x, y + p.h * 0.65);
-                ctx.bezierCurveTo(x - p.w * pex * p.edges.left, y + p.h * 0.65,  x - p.w * pex * p.edges.left, y + p.h * 0.55,  x, y + p.h * 0.55);
-                ctx.lineTo(x, y + p.h * 0.45);
-                ctx.bezierCurveTo(x - p.w * pex * p.edges.left, y + p.h * 0.45,  x - p.w * pex * p.edges.left, y + p.h * 0.35,  x, y + p.h * 0.35);
-                ctx.lineTo(x, y);
+            else drawTab(x, y + p.h, x, y, p.edges.left, false);
+
+            if(!pathOnly) ctx.closePath();
+
+            // 汎用タブ描画サブ関数（ベジェ曲線で丸く描く）
+            function drawTab(x1, y1, x2, y2, direction, isHorizontal) {
+                const cx = (x1 + x2) / 2;
+                const cy = (y1 + y2) / 2;
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                
+                // 垂直ベクトル（タブの飛び出す方向）
+                let nx = isHorizontal ? 0 : -dy/Math.abs(dy);
+                let ny = isHorizontal ? dx/Math.abs(dx) : 0;
+                
+                // 向き（凸か凹か）を掛ける
+                nx *= direction * tabSize;
+                ny *= direction * tabSize;
+
+                // 首の広さのベクトル
+                const hnx = isHorizontal ? neckW : 0;
+                const hny = isHorizontal ? 0 : neckW;
+                
+                // 頭の広さのベクトル
+                const awx = isHorizontal ? headW : 0;
+                const awy = isHorizontal ? 0 : headW;
+
+                // 4点のベジェ曲線で丸いタブを描画
+                ctx.bezierCurveTo(cx - hnx + nx*0.2, cy - hny + ny*0.2,  cx - awx + nx, cy - awy + ny,  cx + nx, cy + ny);
+                ctx.bezierCurveTo(cx + awx + nx, cy + awy + ny,  cx + hnx + nx*0.2, cy + hny + ny*0.2, x2, y2);
             }
-            ctx.closePath();
         }
 
-        // 全体の描画
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. パズルの台座枠
-            ctx.fillStyle = "#f5f5f5";
-            ctx.fillRect(boardX, boardY, puzzleW, puzzleH);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "#999";
-            ctx.strokeRect(boardX, boardY, puzzleW, puzzleH);
+            // 1. 完成枠（中央）
+            ctx.fillStyle = "rgba(255,255,255,0.6)";
+            ctx.fillRect(boardX, boardY, puzzleSize, puzzleSize);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = "#aaa";
+            // 枠線もジグソー型にする（おてほんの一部として）
+            ctx.save();
+            ctx.translate(boardX, boardY);
+            for(let r=0; r<rows; r++){
+                for(let c=0; c<cols; c++){
+                    const p = { w:puzzleSize/cols, h:puzzleSize/rows, edges:{top:(r==0?0:1), right:(c==cols-1?0:1), bottom:(r==rows-1?0:1), left:(c==0?0:1)} };
+                    ctx.save();
+                    drawPiecePath(p, c*p.w, r*p.h);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+            ctx.restore();
 
-            // 2. おてほん表示（ボタンを押している間だけ）
+            // 2. おてほん
             if (showHint) {
                 ctx.save();
-                ctx.globalAlpha = 0.25; // うっすら透過
-                ctx.drawImage(img, boardX, boardY, puzzleW, puzzleH);
+                ctx.globalAlpha = 0.3;
+                ctx.drawImage(img, boardX, boardY, puzzleSize, puzzleSize);
                 ctx.restore();
             }
 
-            // 3. ピースの描画（ロックされた完成ピースが下、動かせるピースが上になるように）
-            // ロックされたものを先に描画
+            // 3. ピース描画（ロック優先）
             pieces.forEach(p => { if (p.isLocked) drawSinglePiece(p); });
-            // まだハマっていないものを後に描画
             pieces.forEach(p => { if (!p.isLocked) drawSinglePiece(p); });
         }
 
         function drawSinglePiece(p) {
             ctx.save();
-            // ピースの形でクリップ（くり抜き）をかける
+            // --- 修正ポイント：太い枠線を外側のみに描画して、重なりを綺麗にする ---
             drawPiecePath(p, p.x, p.y);
             ctx.clip();
-            // 切り抜いた内側に画像を描画
             ctx.drawImage(img, p.sx, p.sy, p.sw, p.sh, p.x, p.y, p.w, p.h);
             ctx.restore();
 
-            // ピースの輪郭線を描く
             ctx.save();
             drawPiecePath(p, p.x, p.y);
-            ctx.lineWidth = p.isLocked ? 1 : 2;
-            ctx.strokeStyle = p.isLocked ? "rgba(0,0,0,0.15)" : "#333";
+            // ハマっていないピースは黒くて太い枠（画像と同じスタイル）
+            ctx.lineWidth = p.isLocked ? 1 : 2.5; 
+            ctx.strokeStyle = p.isLocked ? "rgba(0,0,0,0.1)" : "#333";
             ctx.stroke();
             ctx.restore();
         }
 
-        // マウス／タッチの座標取得用ヘルパー
         function getMousePos(e) {
             const rect = canvas.getBoundingClientRect();
-            // マウスイベントかタッチイベントかを判定
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
-            };
+            return { x: clientX - rect.left, y: clientY - rect.top };
         }
 
-        // つかむ処理
         function startDrag(e) {
             if (isCleared) return;
             const pos = getMousePos(e);
-            
-            // 上にあるピース（配列の後ろ）から順に判定
             for (let i = pieces.length - 1; i >= 0; i--) {
                 const p = pieces[i];
-                if (p.isLocked) continue; // すでにはまったピースは動かせない
-
-                // 簡易的な当たり判定（四角形判定）
-                if (pos.x > p.x && pos.x < p.x + p.w && pos.y > p.y && pos.y < p.y + p.h) {
+                if (p.isLocked) continue;
+                // 当たり判定を少し広めに（凸部分もつかめるように）
+                const margin = p.w * 0.2;
+                if (pos.x > p.x-margin && pos.x < p.x + p.w+margin && pos.y > p.y-margin && pos.y < p.y + p.h+margin) {
                     draggedPiece = p;
                     offsetX = pos.x - p.x;
                     offsetY = pos.y - p.y;
-                    
-                    // つかんだピースを最前面（配列の最後尾）に持っていく
                     pieces.push(pieces.splice(i, 1)[0]);
                     break;
                 }
             }
         }
 
-        // 動かす処理
         function moveDrag(e) {
             if (!draggedPiece) return;
-            if(e.cancelable) e.preventDefault(); // スクロール暴発防止
-            
+            if(e.cancelable) e.preventDefault();
             const pos = getMousePos(e);
             draggedPiece.x = pos.x - offsetX;
             draggedPiece.y = pos.y - offsetY;
             draw();
         }
 
-        // はなす処理（ここでピタッと判定を行う）
         function endDrag() {
             if (!draggedPiece) return;
-
-            // 本来の位置（tx, ty）との距離を計算
             const distance = Math.sqrt(Math.pow(draggedPiece.x - draggedPiece.tx, 2) + Math.pow(draggedPiece.y - draggedPiece.ty, 2));
-            
-            // 25ピクセル以内に近づいていたらピタッと吸着
             if (distance < 25) {
                 draggedPiece.x = draggedPiece.tx;
                 draggedPiece.y = draggedPiece.ty;
-                draggedPiece.isLocked = true; // ロックして動かせなくする
-                
-                // ブラウザ標準のピピッという音を鳴らす（簡易SE効果）
+                draggedPiece.isLocked = true;
                 playSnapSound();
             }
-
             draggedPiece = null;
             draw();
             checkClear();
         }
 
-        // ピタッとはまったときの簡易音（小学生へのフィードバック用）
         function playSnapSound() {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5ノート（高めのポンッという音）
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            oscillator.start();
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            oscillator.stop(audioCtx.currentTime + 0.1);
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                oscillator.start(); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1); oscillator.stop(audioCtx.currentTime + 0.1);
+            } catch(e) {} // AudioContextがブロックされた場合は無視
         }
 
-        // クリア判定
         function checkClear() {
-            const allLocked = pieces.every(p => p.isLocked);
-            if (allLocked && !isCleared) {
+            if (pieces.every(p => p.isLocked) && !isCleared) {
                 isCleared = true;
                 clearMessage.style.display = 'block';
+                // 簡易紙吹雪演出を追加しても良い
             }
         }
 
-        // マウスイベント登録
         canvas.addEventListener('mousedown', startDrag);
         window.addEventListener('mousemove', moveDrag);
         window.addEventListener('mouseup', endDrag);
-
-        // タッチイベント登録（スマホ・タブレット対応）
         canvas.addEventListener('touchstart', startDrag);
         canvas.addEventListener('touchmove', moveDrag, { passive: false });
         canvas.addEventListener('touchend', endDrag);
