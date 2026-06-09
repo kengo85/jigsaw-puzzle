@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>爆速ジグソーパズル</title>
+    <style>
+        body { text-align: center; font-family: sans-serif; background: #f0f0f0; }
+        #canvas { background: #fff; border: 2px solid #333; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>ジグソーパズル（試作版）</h1>
+    <p>ピースをドラッグして動かしてね！</p>
+    <canvas id="canvas" width="400" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // テスト用の簡易画像（フリー素材のURLやご自身の画像に変えられます）
+        const img = new Image();
+        img.src = 'https://picsum.photos/400/400'; 
+        
+        let pieces = [];
+        let draggedPiece = null;
+        let offsetX, offsetY;
+
+        img.onload = () => {
+            // 2x2 の計4ピースに分割
+            for(let i=0; i<2; i++) {
+                for(let j=0; j<2; j++) {
+                    pieces.push({
+                        sx: j * 200, sy: i * 200, // 画像内の切り抜き位置
+                        x: Math.random() * 200, y: Math.random() * 200, // 初期配置（ランダム）
+                        w: 200, h: 200
+                    });
+                }
+            }
+            draw();
+        };
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pieces.forEach(p => {
+                ctx.drawImage(img, p.sx, p.sy, p.w, p.h, p.x, p.y, p.w, p.h);
+                ctx.strokeRect(p.x, p.y, p.w, p.h); // 枠線
+            });
+        }
+
+        // マウス操作のイベント
+        canvas.addEventListener('mousedown', e => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            
+            // クリックした位置にあるピースを探す（重なりを考慮して逆順）
+            for(let i = pieces.length - 1; i >= 0; i--) {
+                const p = pieces[i];
+                if(mx > p.x && mx < p.x + p.w && my > p.y && my < p.y + p.h) {
+                    draggedPiece = p;
+                    offsetX = mx - p.x;
+                    offsetY = my - p.y;
+                    // ドラッグしたピースを最前面へ移動
+                    pieces.push(pieces.splice(i, 1)[0]);
+                    break;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            if(!draggedPiece) return;
+            const rect = canvas.getBoundingClientRect();
+            draggedPiece.x = (e.clientX - rect.left) - offsetX;
+            draggedPiece.y = (e.clientY - rect.top) - offsetY;
+            draw();
+        });
+
+        window.addEventListener('mouseup', () => { draggedPiece = null; });
+    </script>
+</body>
+</html>
