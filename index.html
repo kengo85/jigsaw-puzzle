@@ -1,383 +1,1273 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>たのしいジグソーパズル</title>
-    <style>
-        html, body { height: 100%; box-sizing: border-box; }
-        *, *:before, *:after { box-sizing: inherit; }
-        
-        body { text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; background: #eef7f2; color: #333; margin: 0; padding: 10px 10px 60px 10px; /* 画面下にしっかり余白を確保 */ overflow: hidden; }
-        h1 { color: #2a7a4a; font-size: 20px; margin: 5px 0; }
-        .menu-group { background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: inline-block; margin-bottom: 10px; z-index: 100; position: relative; }
-        label, button { font-size: 14px; font-weight: bold; padding: 6px 12px; margin: 3px; border-radius: 8px; border: none; cursor: pointer; display: inline-block; vertical-align: middle; }
-        select { font-size: 14px; padding: 6px; border-radius: 8px; border: 2px solid #ccc; vertical-align: middle; }
-        .btn-green { background: #4caf50; color: white; }
-        .btn-blue { background: #2196f3; color: white; }
-        #file-input { display: none; }
-        
-        #timer-display { font-size: 18px; font-weight: bold; color: #2a7a4a; margin-left: 10px; display: inline-block; vertical-align: middle; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>たのしいジグソーパズル</title>
+<style>
+  /* ===== ベース ===== */
+  html, body { height: 100%; box-sizing: border-box; }
+  *, *:before, *:after { box-sizing: inherit; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', 'Helvetica Neue', Arial, sans-serif;
+    background:
+      radial-gradient(circle at 18% 12%, #fff6d8 0%, transparent 42%),
+      radial-gradient(circle at 85% 8%, #ffe1ef 0%, transparent 40%),
+      radial-gradient(circle at 50% 100%, #d6f5e8 0%, transparent 55%),
+      linear-gradient(160deg, #eaf7ff 0%, #f3fbf2 100%);
+    color: #4a4036;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
 
-        #game-area { position: relative; width: 100%; height: calc(100vh - 180px); background: #ddd; border: 4px solid #2a7a4a; border-radius: 8px; overflow: hidden; }
-        #canvas { display: block; position: absolute; top: 0; left: 0; }
-        
-        #clear-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 20px 40px; border-radius: 20px; border: 5px solid #ffeb3b; font-size: 28px; font-weight: bold; color: #ff5722; animation: pop 0.5s ease-out; pointer-events: none; z-index: 200; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-        .time-result { font-size: 20px; color: #333; margin-top: 10px; display: block; }
-        @keyframes pop { 0% { transform: translate(-50%, -50%) scale(0); } 100% { transform: translate(-50%, -50%) scale(1); } }
-    </style>
+  /* ===== レイアウト ===== */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    padding: 8px 10px 10px;
+    gap: 8px;
+  }
+
+  /* ===== トップバー ===== */
+  #topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    padding: 8px 12px;
+    box-shadow: 0 4px 14px rgba(90,120,90,0.12);
+    flex-shrink: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: #2a7a4a; white-space: nowrap; }
+  .brand .logo { font-size: 22px; animation: wiggle 2.6s ease-in-out infinite; transform-origin: 70% 70%; display:inline-block; }
+  @keyframes wiggle { 0%,88%,100%{transform:rotate(0)} 92%{transform:rotate(-14deg)} 96%{transform:rotate(12deg)} }
+
+  .stats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #fff; border-radius: 999px; padding: 5px 12px;
+    font-weight: 800; font-size: 15px; color: #4a4036;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06); white-space: nowrap;
+  }
+  .chip .ic { font-size: 16px; }
+  #chip-timer { color: #2a7a4a; }
+  #chip-moves { color: #d4791f; }
+  #chip-best { color: #b06fd0; }
+  #chip-best.hidden { display: none; }
+
+  /* ===== ボタン共通 ===== */
+  .btn {
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 15px;
+    padding: 9px 14px;
+    border-radius: 14px;
+    border: none;
+    cursor: pointer;
+    color: #fff;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.14), 0 5px 10px rgba(0,0,0,0.10);
+    transition: transform .08s, box-shadow .08s, filter .15s;
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.14); }
+  .btn:focus-visible { outline: 3px solid #ffb84d; outline-offset: 2px; }
+  .btn.green  { background: linear-gradient(180deg,#5fce6e,#42b455); }
+  .btn.blue   { background: linear-gradient(180deg,#42a7f5,#2f8fe0); }
+  .btn.orange { background: linear-gradient(180deg,#ffb14d,#f5912f); }
+  .btn.purple { background: linear-gradient(180deg,#c07fe0,#a45fd0); }
+  .btn.pink   { background: linear-gradient(180deg,#ff8fb3,#f56f97); }
+  .btn.ghost  { background: #fff; color: #5a6b5a; box-shadow: 0 3px 0 rgba(0,0,0,0.10); }
+  .btn[disabled] { opacity: .45; pointer-events: none; }
+  .btn .ic { font-size: 17px; }
+
+  /* ===== ゲームエリア ===== */
+  #game-area {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    background:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.5) 0 14px, rgba(255,255,255,0.32) 14px 28px),
+      linear-gradient(135deg, #cfeede, #bfe6dd);
+    border: 5px solid #ffffff;
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 12px rgba(0,0,0,0.08), 0 8px 20px rgba(90,120,90,0.16);
+  }
+  #canvas { display: block; position: absolute; top: 0; left: 0; touch-action: none; }
+
+  /* ===== 進捗バー ===== */
+  #progress-wrap {
+    position: absolute; left: 12px; right: 12px; bottom: 10px;
+    height: 16px; background: rgba(255,255,255,0.65);
+    border-radius: 999px; overflow: hidden; z-index: 30;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.12);
+    pointer-events: none;
+  }
+  #progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg,#5fce6e,#42b455);
+    border-radius: 999px; transition: width .35s cubic-bezier(.2,.9,.3,1);
+  }
+  #progress-label {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: 11px; font-weight: 800; color: #2a5a3a; z-index: 31; pointer-events: none;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+  }
+
+  /* ===== スタート画面 ===== */
+  #start-screen {
+    position: absolute; inset: 0; z-index: 60;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 18px;
+    background:
+      radial-gradient(circle at 50% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0.78));
+    backdrop-filter: blur(3px);
+    text-align: center;
+  }
+  #start-screen h2 { font-size: clamp(22px, 6vw, 34px); color: #2a7a4a; margin: 0; }
+  #start-screen .sub { font-size: 15px; color: #6a7a6a; margin: -6px 0 4px; }
+  .panel-card {
+    background: #fff; border-radius: 20px; padding: 16px 18px;
+    box-shadow: 0 8px 24px rgba(90,120,90,0.18); width: min(440px, 92%);
+  }
+  .panel-card .ttl { font-weight: 800; color: #4a4036; font-size: 15px; margin-bottom: 10px; }
+
+  /* むずかしさ選択 */
+  .diff-row { display: flex; gap: 8px; justify-content: center; }
+  .diff-btn {
+    flex: 1; cursor: pointer; border: 3px solid #e3e8e3; background: #fafdfb;
+    border-radius: 16px; padding: 12px 6px; transition: all .12s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .diff-btn .face { font-size: 28px; }
+  .diff-btn .name { font-weight: 800; font-size: 14px; color: #4a4036; }
+  .diff-btn .count { font-size: 12px; color: #8a958a; font-weight: 700; }
+  .diff-btn[aria-pressed="true"] { border-color: #42b455; background: #eafaef; transform: translateY(-2px); box-shadow: 0 5px 0 #cdeccf; }
+  .diff-btn:focus-visible { outline: 3px solid #ffb84d; outline-offset: 2px; }
+
+  /* 絵えらび */
+  #pic-strip { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  .pic-thumb {
+    width: 60px; height: 60px; border-radius: 14px; cursor: pointer;
+    border: 3px solid #e3e8e3; overflow: hidden; background: #f0f0f0;
+    transition: all .12s; position: relative; flex-shrink: 0;
+  }
+  .pic-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .pic-thumb[aria-pressed="true"] { border-color: #42a7f5; transform: translateY(-2px) scale(1.04); box-shadow: 0 5px 0 #bfe0fb; }
+  .pic-thumb:focus-visible { outline: 3px solid #ffb84d; outline-offset: 2px; }
+  .pic-thumb.upload { display: flex; align-items: center; justify-content: center; font-size: 24px; color: #7a8a7a; background: #f3f8f3; }
+  .pic-thumb .emoji-face { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:32px; }
+
+  #file-input { display: none; }
+
+  /* ===== クリア画面 ===== */
+  #clear-screen {
+    position: absolute; inset: 0; z-index: 70; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: radial-gradient(circle at 50% 40%, rgba(255,255,255,0.92), rgba(255,255,255,0.8));
+    backdrop-filter: blur(3px); text-align: center; padding: 20px;
+  }
+  #clear-card {
+    background: #fff; border-radius: 26px; padding: 22px 26px;
+    border: 6px solid #ffe066;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.18);
+    animation: pop .5s cubic-bezier(.2,1.4,.4,1);
+    width: min(420px, 92%);
+  }
+  #clear-card .big { font-size: clamp(26px,7vw,38px); font-weight: 900; color: #ff7043; margin: 0 0 6px; }
+  #clear-card .stars { font-size: 40px; letter-spacing: 4px; margin: 6px 0; min-height: 46px; }
+  #clear-card .star { display:inline-block; opacity:0; transform: scale(0) rotate(-40deg); }
+  #clear-card .result-line { font-size: 17px; font-weight: 800; color: #4a4036; margin: 4px 0; }
+  #clear-card .result-line .v { color: #2a7a4a; }
+  #clear-card .newbest { font-size: 15px; font-weight: 800; color: #b06fd0; margin-top: 6px; display: none; }
+  #clear-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
+  @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+  /* ===== 紙吹雪 ===== */
+  #confetti { position: absolute; inset: 0; z-index: 65; pointer-events: none; }
+
+  /* ===== ヘルプ ===== */
+  #help-tip {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    background: rgba(74,64,54,0.92); color: #fff; font-weight: 700; font-size: 14px;
+    padding: 8px 16px; border-radius: 999px; z-index: 40;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); opacity: 0; transition: opacity .4s;
+    pointer-events: none; white-space: nowrap; max-width: 90%;
+  }
+  #help-tip.show { opacity: 1; }
+
+  /* ===== お手本フロート ===== */
+  #peek-thumb {
+    position: absolute; top: 8px; right: 8px; z-index: 35;
+    width: 84px; height: 84px; border-radius: 14px; overflow: hidden;
+    border: 3px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    opacity: 0; transform: scale(.9); transition: opacity .2s, transform .2s;
+    pointer-events: none; background:#eee;
+  }
+  #peek-thumb.show { opacity: 1; transform: scale(1); }
+  #peek-thumb img { width: 100%; height: 100%; object-fit: cover; display:block; }
+  #peek-thumb .cap { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.45); color:#fff; font-size:10px; font-weight:700; text-align:center; padding:1px; }
+
+  @media (max-width: 480px) {
+    .brand { font-size: 16px; }
+    .chip { font-size: 13px; padding: 4px 9px; }
+    .btn { font-size: 13px; padding: 8px 11px; }
+    #peek-thumb { width: 64px; height: 64px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *:before, *:after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
 </head>
 <body>
+<div id="app">
 
-    <h1>🧩 たのしいジグソーパズル 🧩</h1>
+  <!-- トップバー -->
+  <div id="topbar">
+    <div class="brand"><span class="logo">🧩</span><span>ジグソーパズル</span></div>
+    <div class="stats">
+      <span class="chip" id="chip-timer"><span class="ic">⏱</span><span id="timer-text">00:00</span></span>
+      <span class="chip" id="chip-moves"><span class="ic">👆</span><span id="moves-text">0</span></span>
+      <span class="chip hidden" id="chip-best"><span class="ic">🏆</span><span id="best-text">--:--</span></span>
+    </div>
+    <div class="controls">
+      <button class="btn orange" id="btn-peek"><span class="ic">👀</span>おてほん</button>
+      <button class="btn blue" id="btn-shuffle"><span class="ic">🔀</span>あつめる</button>
+      <button class="btn ghost" id="btn-home"><span class="ic">🏠</span></button>
+    </div>
+  </div>
 
-    <div class="menu-group">
-        <label for="difficulty">むずかしさ：</label>
-        <select id="difficulty">
-            <option value="3">かんたん (9)</option>
-            <option value="4" selected>ふつう (16)</option>
-            <option value="5">むずかしい (25)</option>
-        </select>
-        <button class="btn-green" id="btn-sample">ちがう絵</button>
-        <button class="btn-blue" onclick="document.getElementById('file-input').click()">写真</button>
+  <!-- ゲーム -->
+  <div id="game-area">
+    <canvas id="canvas"></canvas>
+
+    <div id="progress-wrap"><div id="progress-bar"></div></div>
+    <div id="progress-label">0 / 0</div>
+
+    <div id="peek-thumb"><img id="peek-img" alt=""><div class="cap">かんせいず</div></div>
+
+    <div id="help-tip"></div>
+
+    <canvas id="confetti"></canvas>
+
+    <!-- スタート画面 -->
+    <div id="start-screen">
+      <h2>🧩 たのしいジグソーパズル 🧩</h2>
+      <div class="sub">えとむずかしさをえらんで、スタート！</div>
+
+      <div class="panel-card">
+        <div class="ttl">① どのえであそぶ？</div>
+        <div id="pic-strip"></div>
         <input type="file" id="file-input" accept="image/*">
-        <button class="btn-blue" id="btn-hint">👁 おてほん</button>
-        <div id="timer-display">⏱ 00:00</div>
-    </div>
+      </div>
 
-    <div id="game-area">
-        <canvas id="canvas"></canvas>
-        <div id="clear-message">
-            <span>🎉 クリア！おめでとう！ 🎉</span>
-            <span class="time-result" id="time-result">タイム: 0秒</span>
+      <div class="panel-card">
+        <div class="ttl">② むずかしさは？</div>
+        <div class="diff-row" id="diff-row">
+          <button class="diff-btn" data-n="3" aria-pressed="false">
+            <span class="face">😊</span><span class="name">かんたん</span><span class="count">9ピース</span>
+          </button>
+          <button class="diff-btn" data-n="4" aria-pressed="true">
+            <span class="face">😎</span><span class="name">ふつう</span><span class="count">16ピース</span>
+          </button>
+          <button class="diff-btn" data-n="5" aria-pressed="false">
+            <span class="face">🤩</span><span class="name">むずかしい</span><span class="count">25ピース</span>
+          </button>
+          <button class="diff-btn" data-n="6" aria-pressed="false">
+            <span class="face">🔥</span><span class="name">たつじん</span><span class="count">36ピース</span>
+          </button>
         </div>
+      </div>
+
+      <button class="btn green" id="btn-start" style="font-size:20px;padding:14px 38px;border-radius:18px;">
+        <span class="ic">▶</span>スタート！
+      </button>
     </div>
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const gameArea = document.getElementById('game-area');
-        const difficultySelect = document.getElementById('difficulty');
-        const fileInput = document.getElementById('file-input');
-        const btnSample = document.getElementById('btn-sample');
-        const btnHint = document.getElementById('btn-hint');
-        const clearMessage = document.getElementById('clear-message');
-        const timerDisplay = document.getElementById('timer-display');
-        const timeResult = document.getElementById('time-result');
+    <!-- クリア画面 -->
+    <div id="clear-screen">
+      <div id="clear-card">
+        <p class="big">🎉 クリア！ 🎉</p>
+        <div class="stars" id="clear-stars"></div>
+        <p class="result-line">タイム <span class="v" id="clear-time">0びょう</span></p>
+        <p class="result-line">うごかした かいすう <span class="v" id="clear-moves">0かい</span></p>
+        <p class="newbest" id="clear-newbest">✨ あたらしい きろく！ ✨</p>
+        <div id="clear-actions">
+          <button class="btn green" id="btn-again"><span class="ic">🔁</span>もういちど</button>
+          <button class="btn blue" id="btn-next-pic"><span class="ic">🖼</span>つぎのえ</button>
+          <button class="btn ghost" id="btn-clear-home"><span class="ic">🏠</span>さいしょへ</button>
+        </div>
+      </div>
+    </div>
 
-        let img = new Image();
-        let pieces = [];
-        let draggedPiece = null;
-        let offsetX, offsetY;
-        
-        const puzzleSize = 360; 
-        let boardX, boardY;
+  </div>
+</div>
 
-        let rows = 4;
-        let cols = 4;
-        let showHint = false;
-        let isCleared = false;
+<script>
+/* =========================================================
+   たのしいジグソーパズル  —  game engine
+   ========================================================= */
+(function () {
+  'use strict';
 
-        let startTime;
-        let timerInterval;
+  // ---- DOM ----
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('canvas');
+  const ctx = canvas.getContext('2d');
+  const confettiCanvas = $('confetti');
+  const cctx = confettiCanvas.getContext('2d');
+  const gameArea = $('game-area');
 
-        let hCurves = []; 
-        let vCurves = []; 
+  const startScreen = $('start-screen');
+  const clearScreen = $('clear-screen');
+  const picStrip = $('pic-strip');
+  const diffRow = $('diff-row');
+  const fileInput = $('file-input');
 
-        const samples = [
-            'https://images.unsplash.com/photo-1591160690555-5debfba289f0?q=80&w=400&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=400&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1598133894008-61f7fdb8cc3a?q=80&w=400&auto=format&fit=crop'
-        ];
-        let sampleIndex = 0;
+  const timerText = $('timer-text');
+  const movesText = $('moves-text');
+  const bestText = $('best-text');
+  const chipBest = $('chip-best');
+  const progressBar = $('progress-bar');
+  const progressLabel = $('progress-label');
+  const helpTip = $('help-tip');
+  const peekThumb = $('peek-thumb');
+  const peekImg = $('peek-img');
 
-        img.crossOrigin = "anonymous"; 
-        img.src = samples[sampleIndex];
-        img.onload = initGame;
+  // ---- 絵のラインナップ（絵文字ベース＝外部依存ゼロ・確実に表示） ----
+  // 学校ネット環境でも必ず描けるよう、画像は内部生成する
+  const PICTURES = [
+    { id: 'cat',     label: 'ねこ',     emojis: ['🐱','🐭','🐟','🧶','🐾','⭐'], bg: ['#ffe1ec','#ffd1e0'] },
+    { id: 'space',   label: 'うちゅう', emojis: ['🚀','🪐','⭐','🌙','☄️','👽'], bg: ['#d9e4ff','#c3d4ff'] },
+    { id: 'ocean',   label: 'うみ',     emojis: ['🐠','🐙','🐳','🦀','🐚','🌊'], bg: ['#cdeefb','#b3e3f7'] },
+    { id: 'sweets',  label: 'スイーツ', emojis: ['🍩','🍰','🍓','🍪','🧁','🍭'], bg: ['#ffe7d1','#ffd6bd'] },
+    { id: 'jungle',  label: 'どうぶつ', emojis: ['🦁','🐘','🦒','🐵','🦓','🌴'], bg: ['#d8f5d0','#c3eeb8'] },
+    { id: 'fruit',   label: 'くだもの', emojis: ['🍎','🍊','🍇','🍌','🍉','🍑'], bg: ['#fff2c4','#ffe89a'] },
+  ];
 
-        difficultySelect.addEventListener('change', () => { rows = cols = parseInt(difficultySelect.value); initGame(); });
-        btnSample.addEventListener('click', () => { sampleIndex = (sampleIndex + 1) % samples.length; img.src = samples[sampleIndex]; });
-        
-        btnHint.addEventListener('mousedown', toggleHintTrue);
-        btnHint.addEventListener('mouseup', toggleHintFalse);
-        btnHint.addEventListener('mouseleave', toggleHintFalse);
-        btnHint.addEventListener('touchstart', (e) => { e.preventDefault(); toggleHintTrue(); });
-        btnHint.addEventListener('touchend', toggleHintFalse);
+  // ---- 状態 ----
+  const SIZE = 1000;           // 内部基準解像度（正方形）
+  let img = null;              // 現在のパズル画像（offscreen canvas or Image）
+  let imgIsCanvas = false;
+  let currentPicLabel = '';
+  let selectedPicIndex = 0;
+  let customImg = null;        // アップロード画像
 
-        function toggleHintTrue() { showHint = true; draw(); }
-        function toggleHintFalse() { showHint = false; draw(); }
+  let rows = 4, cols = 4;
+  let pieces = [];
+  let draggedPiece = null;
+  let dragGroup = [];          // つながっているピースのグループ
+  let offsetX = 0, offsetY = 0;
+  let lastPointer = { x: 0, y: 0 };
 
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => { img.src = event.target.result; };
-            reader.readAsDataURL(file);
+  let boardX = 0, boardY = 0, puzzleSize = 360;
+  let pieceW = 0, pieceH = 0;
+
+  let hCurves = [], vCurves = [];
+
+  let isPlaying = false;
+  let isCleared = false;
+  let moves = 0;
+  let lockedCount = 0;
+
+  let startTime = 0;
+  let timerInterval = null;
+  let peekActive = false;
+
+  let dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2.5));
+
+  // ---- ユーティリティ ----
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function fmtTimeKids(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    if (m > 0) return m + 'ふん ' + s + 'びょう';
+    return s + 'びょう';
+  }
+
+  // ============================================================
+  //  画像生成（絵文字を散りばめた楽しい絵を内部で描く）
+  // ============================================================
+  function makePictureCanvas(pic) {
+    const c = document.createElement('canvas');
+    c.width = SIZE; c.height = SIZE;
+    const g = c.getContext('2d');
+
+    // 背景グラデ
+    const grad = g.createLinearGradient(0, 0, SIZE, SIZE);
+    grad.addColorStop(0, pic.bg[0]);
+    grad.addColorStop(1, pic.bg[1]);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, SIZE, SIZE);
+
+    // やわらかい水玉模様
+    g.save();
+    g.globalAlpha = 0.35;
+    for (let i = 0; i < 26; i++) {
+      const r = 30 + Math.random() * 70;
+      g.fillStyle = 'rgba(255,255,255,' + (0.25 + Math.random() * 0.3) + ')';
+      g.beginPath();
+      g.arc(Math.random() * SIZE, Math.random() * SIZE, r, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+
+    // 絵文字をグリッド状＋少しランダムに散らす
+    const list = pic.emojis;
+    const grid = 4;
+    const cell = SIZE / grid;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    let k = 0;
+    for (let yy = 0; yy < grid; yy++) {
+      for (let xx = 0; xx < grid; xx++) {
+        const emoji = list[(k++) % list.length];
+        const cx = cell * xx + cell / 2 + (Math.random() - 0.5) * cell * 0.3;
+        const cy = cell * yy + cell / 2 + (Math.random() - 0.5) * cell * 0.3;
+        const fs = cell * (0.62 + Math.random() * 0.22);
+        g.save();
+        g.translate(cx, cy);
+        g.rotate((Math.random() - 0.5) * 0.5);
+        g.font = fs + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+        // 影でぷっくり感
+        g.shadowColor = 'rgba(0,0,0,0.18)';
+        g.shadowBlur = 8;
+        g.shadowOffsetY = 4;
+        g.fillText(emoji, 0, 0);
+        g.restore();
+      }
+    }
+    return c;
+  }
+
+  // 絵文字サムネ（スタート画面用に1個だけ大きく）
+  function emojiThumb(pic) {
+    const wrap = document.createElement('div');
+    wrap.className = 'emoji-face';
+    wrap.style.background = 'linear-gradient(135deg,' + pic.bg[0] + ',' + pic.bg[1] + ')';
+    wrap.textContent = pic.emojis[0];
+    return wrap;
+  }
+
+  // ============================================================
+  //  スタート画面のセットアップ
+  // ============================================================
+  function buildPicStrip() {
+    picStrip.innerHTML = '';
+    PICTURES.forEach((pic, i) => {
+      const b = document.createElement('button');
+      b.className = 'pic-thumb';
+      b.setAttribute('aria-pressed', i === selectedPicIndex ? 'true' : 'false');
+      b.setAttribute('aria-label', pic.label);
+      b.appendChild(emojiThumb(pic));
+      b.addEventListener('click', () => {
+        customImg = null;
+        selectedPicIndex = i;
+        refreshPicSelection();
+      });
+      picStrip.appendChild(b);
+    });
+
+    // アップロードボタン
+    const up = document.createElement('button');
+    up.className = 'pic-thumb upload';
+    up.setAttribute('aria-label', 'じぶんのしゃしん');
+    up.innerHTML = '📷';
+    up.addEventListener('click', () => fileInput.click());
+    picStrip.appendChild(up);
+  }
+
+  function refreshPicSelection() {
+    const thumbs = picStrip.querySelectorAll('.pic-thumb:not(.upload)');
+    thumbs.forEach((t, i) => t.setAttribute('aria-pressed', (!customImg && i === selectedPicIndex) ? 'true' : 'false'));
+    const up = picStrip.querySelector('.pic-thumb.upload');
+    if (up) up.style.borderColor = customImg ? '#42a7f5' : '#e3e8e3';
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const im = new Image();
+      im.onload = () => {
+        // 正方形にトリミングして基準解像度のcanvasへ
+        const c = document.createElement('canvas');
+        c.width = SIZE; c.height = SIZE;
+        const g = c.getContext('2d');
+        const s = Math.min(im.width, im.height);
+        const sx = (im.width - s) / 2, sy = (im.height - s) / 2;
+        g.drawImage(im, sx, sy, s, s, 0, 0, SIZE, SIZE);
+        customImg = c;
+        refreshPicSelection();
+      };
+      im.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  diffRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('.diff-btn');
+    if (!btn) return;
+    diffRow.querySelectorAll('.diff-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    btn.setAttribute('aria-pressed', 'true');
+  });
+
+  function getSelectedDifficulty() {
+    const btn = diffRow.querySelector('.diff-btn[aria-pressed="true"]');
+    return btn ? parseInt(btn.dataset.n, 10) : 4;
+  }
+
+  // ============================================================
+  //  キャンバスのサイズ調整（高解像度対応）
+  // ============================================================
+  function resizeCanvas() {
+    const w = gameArea.clientWidth;
+    const h = gameArea.clientHeight;
+    dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2.5));
+
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    confettiCanvas.style.width = w + 'px';
+    confettiCanvas.style.height = h + 'px';
+    confettiCanvas.width = Math.round(w * dpr);
+    confettiCanvas.height = Math.round(h * dpr);
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // ボードサイズ：エリアに収まる正方形。
+    // ピースを散らすスペースを必ず確保する。低難易度ほどピースが大きいので、
+    // 盤の外に最低でもピース1個分の帯が残るようサイズを抑える。
+    const margin = 20;
+    const reserveBottom = 34; // 進捗バー
+    const maxW = w - margin * 2;
+    const maxH = h - margin * 2 - reserveBottom;
+    const fit = Math.min(maxW, maxH);
+    const shortSide = Math.min(w, h - reserveBottom);
+    // 盤の外（短辺側）にピース1個分(board/cols)＋余白が残る条件:
+    //   (shortSide - board)/2 >= board/cols + pad  →  board <= cols*(shortSide/2 - pad)/(cols/2 + 1)
+    const padApprox = 18;
+    const bandFit = (cols * (shortSide / 2 - padApprox)) / (cols / 2 + 1);
+    puzzleSize = clamp(Math.min(fit, bandFit, Math.min(w, h) * 0.82), 150, 540);
+    boardX = (w - puzzleSize) / 2;
+    boardY = (h - puzzleSize - reserveBottom) / 2 + 4;
+
+    pieceW = puzzleSize / cols;
+    pieceH = puzzleSize / rows;
+  }
+
+  // ============================================================
+  //  ジグソー曲線データの生成
+  // ============================================================
+  function genCurves() {
+    hCurves = [];
+    vCurves = [];
+    for (let r = 1; r < rows; r++) {
+      hCurves[r] = [];
+      for (let c = 0; c < cols; c++) {
+        hCurves[r][c] = { dir: Math.random() > 0.5 ? 1 : -1 };
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      vCurves[r] = [];
+      for (let c = 1; c < cols; c++) {
+        vCurves[r][c] = { dir: Math.random() > 0.5 ? 1 : -1 };
+      }
+    }
+  }
+
+  // タブ（凸凹）パラメータ — ピースサイズ基準で算出
+  function tabParams() {
+    const size = Math.min(pieceW, pieceH);
+    return { t: size * 0.22, nw: size * 0.12, hw: size * 0.22 };
+  }
+
+  // ============================================================
+  //  ピースの輪郭パス
+  // ============================================================
+  function drawPiecePath(p, x, y) {
+    const tp = tabParams();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    // 上辺
+    if (p.r === 0) ctx.lineTo(x + pieceW, y);
+    else tabSeg(x, y, x + pieceW, y, hCurves[p.r][p.c], true, false, tp);
+    // 右辺
+    if (p.c === cols - 1) ctx.lineTo(x + pieceW, y + pieceH);
+    else tabSeg(x + pieceW, y, x + pieceW, y + pieceH, vCurves[p.r][p.c + 1], false, false, tp);
+    // 下辺
+    if (p.r === rows - 1) ctx.lineTo(x, y + pieceH);
+    else tabSeg(x + pieceW, y + pieceH, x, y + pieceH, hCurves[p.r + 1][p.c], true, true, tp);
+    // 左辺
+    if (p.c === 0) ctx.lineTo(x, y);
+    else tabSeg(x, y + pieceH, x, y, vCurves[p.r][p.c], false, true, tp);
+    ctx.closePath();
+  }
+
+  function tabSeg(x1, y1, x2, y2, curve, isH, reverse, tp) {
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    const gdir = reverse ? -1 : 1;
+    const dir = curve.dir * gdir;
+    let nx = isH ? 0 : (y2 > y1 ? 1 : -1);
+    let ny = isH ? (x2 > x1 ? -1 : 1) : 0;
+    nx *= dir * tp.t; ny *= dir * tp.t;
+    const hnx = isH ? tp.nw : 0;
+    const hny = isH ? 0 : tp.nw;
+    const awx = isH ? tp.hw : 0;
+    const awy = isH ? 0 : tp.hw;
+    ctx.bezierCurveTo(cx - hnx * gdir + nx * 0.2, cy - hny * gdir + ny * 0.2, cx - awx * gdir + nx, cy - awy * gdir + ny, cx + nx, cy + ny);
+    ctx.bezierCurveTo(cx + awx * gdir + nx, cy + awy * gdir + ny, cx + hnx * gdir + nx * 0.2, cy + hny * gdir + ny * 0.2, x2, y2);
+  }
+
+  // ============================================================
+  //  ゲーム初期化
+  // ============================================================
+  function initGame() {
+    resizeCanvas();
+    genCurves();
+    pieces = [];
+    moves = 0;
+    lockedCount = 0;
+    isCleared = false;
+    isPlaying = true;
+    draggedPiece = null;
+    dragGroup = [];
+    updateMoves();
+
+    const cw = gameArea.clientWidth;
+    const ch = gameArea.clientHeight;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        pieces.push({
+          r, c,
+          sx: c * (SIZE / cols), sy: r * (SIZE / rows),
+          sw: SIZE / cols, sh: SIZE / rows,
+          x: 0, y: 0,
+          tx: boardX + c * pieceW, ty: boardY + r * pieceH,
+          isLocked: false,
+          id: r * cols + c
         });
+      }
+    }
 
-        function resizeCanvas() {
-            canvas.width = gameArea.clientWidth;
-            canvas.height = gameArea.clientHeight;
-            boardX = (canvas.width - puzzleSize) / 2;
-            boardY = (canvas.height - puzzleSize) / 2;
+    scatterPieces(cw, ch);
+    pieces.sort(() => Math.random() - 0.5);
+
+    startTimer();
+    draw();
+    updateProgress();
+    showTip('すきなところからはめてみよう！ うえの「おてほん」でみほんが見られるよ');
+  }
+
+  // ピースを盤の外側の「あいているエリア」に散らす
+  function scatterPieces(cw, ch, list) {
+    const targets = list || pieces;
+    const tp = tabParams();
+    const pad = tp.t + 6;
+    const reserveBottom = 30;
+
+    // 盤のまわりの空き帯（上・下・左・右）を計算
+    const bands = [];
+    const topH = boardY - pad * 2;
+    const botH = (ch - reserveBottom) - (boardY + puzzleSize) - pad * 2;
+    const leftW = boardX - pad * 2;
+    const rightW = cw - (boardX + puzzleSize) - pad * 2;
+    if (topH >= pieceH)   bands.push({ x: pad, y: pad, w: cw - pad * 2, h: topH, area: (cw - pad * 2) * topH });
+    if (botH >= pieceH)   bands.push({ x: pad, y: boardY + puzzleSize + pad, w: cw - pad * 2, h: botH, area: (cw - pad * 2) * botH });
+    if (leftW >= pieceW)  bands.push({ x: pad, y: pad, w: leftW, h: ch - reserveBottom - pad * 2, area: leftW * (ch - reserveBottom - pad * 2) });
+    if (rightW >= pieceW) bands.push({ x: boardX + puzzleSize + pad, y: pad, w: rightW, h: ch - reserveBottom - pad * 2, area: rightW * (ch - reserveBottom - pad * 2) });
+
+    const totalArea = bands.reduce((s, b) => s + b.area, 0);
+
+    targets.forEach(p => {
+      let placed = false;
+      if (bands.length && totalArea > 0) {
+        // 面積に比例して帯を選ぶ
+        for (let attempt = 0; attempt < 12 && !placed; attempt++) {
+          let pick = Math.random() * totalArea;
+          let band = bands[0];
+          for (const b of bands) { if (pick < b.area) { band = b; break; } pick -= b.area; }
+          const x = band.x + Math.random() * Math.max(0, band.w - pieceW);
+          const y = band.y + Math.random() * Math.max(0, band.h - pieceH);
+          const overBoard = (x + pieceW > boardX - pad && x < boardX + puzzleSize + pad &&
+                             y + pieceH > boardY - pad && y < boardY + puzzleSize + pad);
+          if (!overBoard) { p.x = x; p.y = y; placed = true; }
         }
-        window.addEventListener('resize', () => { resizeCanvas(); draw(); });
-
-        function startTimer() {
-            clearInterval(timerInterval);
-            startTime = Date.now();
-            timerInterval = setInterval(updateTimer, 1000);
+      }
+      if (!placed) {
+        // 最終手段：画面内のどこかへ（盤の上は避ける努力）
+        for (let attempt = 0; attempt < 20 && !placed; attempt++) {
+          const x = pad + Math.random() * (cw - pieceW - pad * 2);
+          const y = pad + Math.random() * (ch - pieceH - pad * 2 - reserveBottom);
+          const overBoard = (x + pieceW > boardX - pad && x < boardX + puzzleSize + pad &&
+                             y + pieceH > boardY - pad && y < boardY + puzzleSize + pad);
+          if (!overBoard) { p.x = x; p.y = y; placed = true; }
         }
+      }
+      if (!placed) {
+        p.x = clamp(pad + Math.random() * (cw - pieceW - pad * 2), pad, cw - pieceW - pad);
+        p.y = clamp(pad + Math.random() * (ch - pieceH - pad * 2 - reserveBottom), pad, ch - pieceH - pad);
+      }
+    });
+  }
 
-        function updateTimer() {
-            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
-            const s = String(elapsed % 60).padStart(2, '0');
-            timerDisplay.textContent = `⏱ ${m}:${s}`;
-        }
+  // ============================================================
+  //  描画
+  // ============================================================
+  function draw() {
+    const cw = gameArea.clientWidth, ch = gameArea.clientHeight;
+    ctx.clearRect(0, 0, cw, ch);
 
-        function generateGridCurves(pw, ph) {
-            hCurves = [];
-            vCurves = [];
-            for (let r = 1; r < rows; r++) {
-                hCurves[r] = [];
-                for (let c = 0; c < cols; c++) {
-                    hCurves[r][c] = generateSingleCurveData(pw, ph, Math.random() > 0.5 ? 1 : -1, true);
-                }
-            }
-            for (let r = 0; r < rows; r++) {
-                vCurves[r] = [];
-                for (let c = 1; c < cols; c++) {
-                    vCurves[r][c] = generateSingleCurveData(pw, ph, Math.random() > 0.5 ? 1 : -1, false);
-                }
-            }
-        }
+    // 盤の下地
+    ctx.save();
+    roundRect(ctx, boardX, boardY, puzzleSize, puzzleSize, 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fill();
+    ctx.restore();
 
-        function generateSingleCurveData(pw, ph, dir, isHorizontal) {
-            const size = Math.min(pw, ph);
-            const tSize = size * 0.22; 
-            const nw = size * 0.12;    
-            const hw = size * 0.22;    
-            return { dir: dir, nw: nw, hw: hw, tSize: tSize };
-        }
+    // 盤のガイド（薄いピース輪郭）
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(60,90,60,0.18)';
+    pieces.forEach(p => { drawPiecePath(p, p.tx, p.ty); ctx.stroke(); });
+    ctx.restore();
 
-        function initGame() {
-            resizeCanvas();
-            pieces = [];
-            isCleared = false;
-            clearMessage.style.display = 'none';
-            startTimer();
+    // お手本（半透明）
+    if (peekActive && img) {
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      roundRect(ctx, boardX, boardY, puzzleSize, puzzleSize, 10);
+      ctx.clip();
+      drawImg(boardX, boardY, puzzleSize, puzzleSize);
+      ctx.restore();
+    }
 
-            const pw = puzzleSize / cols;
-            const ph = puzzleSize / rows;
+    // ピース（ロック済み→未ロックの順、ドラッグ中は最後）
+    pieces.forEach(p => { if (p.isLocked) drawPiece(p); });
+    pieces.forEach(p => { if (!p.isLocked && !inDragGroup(p)) drawPiece(p); });
+    dragGroup.forEach(p => drawPiece(p));
+  }
 
-            generateGridCurves(pw, ph);
+  function inDragGroup(p) { return dragGroup.indexOf(p) !== -1; }
 
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    pieces.push({
-                        r: r, c: c,
-                        sx: c * (img.width / cols), sy: r * (img.height / rows), sw: img.width / cols, sh: img.height / rows,
-                        x: Math.random() * (canvas.width - pw), y: Math.random() * (canvas.height - ph),
-                        tx: boardX + c * pw, ty: boardY + r * ph,
-                        w: pw, h: ph, isLocked: false
-                    });
-                }
-            }
+  function drawImg(dx, dy, dw, dh) {
+    ctx.drawImage(img, 0, 0, SIZE, SIZE, dx, dy, dw, dh);
+  }
 
-            pieces.forEach(p => {
-                if(p.x > boardX - p.w && p.x < boardX + puzzleSize && p.y > boardY - p.h && p.y < boardY + puzzleSize) {
-                    p.x = (Math.random() > 0.5) ? Math.random()*(boardX-p.w) : boardX+puzzleSize+Math.random()*(canvas.width-(boardX+puzzleSize)-p.w);
-                    p.y = (Math.random() > 0.5) ? Math.random()*(boardY-p.h) : boardY+puzzleSize+Math.random()*(canvas.height-(boardY+puzzleSize)-p.h);
-                }
-            });
+  function drawPiece(p) {
+    const tp = tabParams();
+    const maxTab = tp.t * 1.15;
 
-            pieces.sort(() => Math.random() - 0.5);
-            draw();
-        }
+    ctx.save();
+    // 影（持ち上がっている未ロックピース）
+    if (!p.isLocked) {
+      ctx.shadowColor = 'rgba(0,0,0,0.28)';
+      ctx.shadowBlur = inDragGroup(p) ? 16 : 7;
+      ctx.shadowOffsetY = inDragGroup(p) ? 8 : 3;
+    }
+    drawPiecePath(p, p.x, p.y);
+    ctx.restore();
 
-        function drawPiecePath(p, x, y) {
-            ctx.beginPath();
-            ctx.moveTo(x, y);
+    ctx.save();
+    drawPiecePath(p, p.x, p.y);
+    ctx.clip();
+    // 元画像の対応領域を、タブ分はみ出しても大丈夫なよう広めに描く
+    const rx = SIZE / puzzleSize;
+    const ry = SIZE / puzzleSize;
+    ctx.drawImage(
+      img,
+      p.sx - maxTab * rx, p.sy - maxTab * ry,
+      p.sw + maxTab * 2 * rx, p.sh + maxTab * 2 * ry,
+      p.x - maxTab, p.y - maxTab,
+      pieceW + maxTab * 2, pieceH + maxTab * 2
+    );
+    ctx.restore();
 
-            if (p.r === 0) ctx.lineTo(x + p.w, y);
-            else drawTabSegment(x, y, x + p.w, y, hCurves[p.r][p.c], true, false);
+    // 枠線
+    ctx.save();
+    drawPiecePath(p, p.x, p.y);
+    if (p.isLocked) {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(40,90,60,0.22)';
+    } else {
+      ctx.lineWidth = inDragGroup(p) ? 3 : 2.2;
+      ctx.strokeStyle = inDragGroup(p) ? '#ff8f43' : '#ffffff';
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
 
-            if (p.c === cols - 1) ctx.lineTo(x + p.w, y + p.h);
-            else drawTabSegment(x + p.w, y, x + p.w, y + p.h, vCurves[p.r][p.c + 1], false, false);
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
 
-            if (p.r === rows - 1) ctx.lineTo(x, y + p.h);
-            else drawTabSegment(x + p.w, y + p.h, x, y + p.h, hCurves[p.r + 1][p.c], true, true);
+  // ============================================================
+  //  入力（ポインタ統一：マウス・タッチ・ペン）
+  // ============================================================
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    let cx, cy;
+    if (e.touches && e.touches.length) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+    else if (e.changedTouches && e.changedTouches.length) { cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY; }
+    else { cx = e.clientX; cy = e.clientY; }
+    return { x: cx - rect.left, y: cy - rect.top };
+  }
 
-            if (p.c === 0) ctx.lineTo(x, y);
-            else drawTabSegment(x, y + p.h, x, y, vCurves[p.r][p.c], false, true);
+  function hitPiece(pos) {
+    const tp = tabParams();
+    const m = tp.t * 0.6;
+    for (let i = pieces.length - 1; i >= 0; i--) {
+      const p = pieces[i];
+      if (p.isLocked) continue;
+      if (pos.x > p.x - m && pos.x < p.x + pieceW + m &&
+          pos.y > p.y - m && pos.y < p.y + pieceH + m) {
+        return p;
+      }
+    }
+    return null;
+  }
 
-            ctx.closePath();
-        }
+  function startDrag(e) {
+    if (!isPlaying || isCleared) return;
+    const pos = getPos(e);
+    const p = hitPiece(pos);
+    if (!p) return;
+    if (e.cancelable) e.preventDefault();
 
-        function drawTabSegment(x1, y1, x2, y2, curve, isHorizontal, isReverse) {
-            const cx = (x1 + x2) / 2;
-            const cy = (y1 + y2) / 2;
-            const globalDir = isReverse ? -1 : 1;
-            const dir = curve.dir * globalDir;
+    draggedPiece = p;
+    dragGroup = collectGroup(p);
+    offsetX = pos.x - p.x;
+    offsetY = pos.y - p.y;
+    lastPointer = pos;
 
-            let nx = isHorizontal ? 0 : (y2 > y1 ? 1 : -1);
-            let ny = isHorizontal ? (x2 > x1 ? -1 : 1) : 0;
-            
-            nx *= dir * curve.tSize;
-            ny *= dir * curve.tSize;
+    // グループを最前面へ
+    dragGroup.forEach(g => {
+      const idx = pieces.indexOf(g);
+      if (idx !== -1) pieces.push(pieces.splice(idx, 1)[0]);
+    });
+    draw();
+  }
 
-            const hnx = isHorizontal ? curve.nw : 0;
-            const hny = isHorizontal ? 0 : curve.nw;
-            const awx = isHorizontal ? curve.hw : 0;
-            const awy = isHorizontal ? 0 : curve.hw;
+  function moveDrag(e) {
+    if (!draggedPiece) return;
+    if (e.cancelable) e.preventDefault();
+    const pos = getPos(e);
+    const dx = (pos.x - offsetX) - draggedPiece.x;
+    const dy = (pos.y - offsetY) - draggedPiece.y;
+    dragGroup.forEach(g => { g.x += dx; g.y += dy; });
+    lastPointer = pos;
+    draw();
+  }
 
-            ctx.bezierCurveTo(cx - hnx*globalDir + nx*0.2, cy - hny*globalDir + ny*0.2,  cx - awx*globalDir + nx, cy - awy*globalDir + ny,  cx + nx, cy + ny);
-            ctx.bezierCurveTo(cx + awx*globalDir + nx, cy + awy*globalDir + ny,  cx + hnx*globalDir + nx*0.2, cy + hny*globalDir + ny*0.2, x2, y2);
-        }
+  function endDrag() {
+    if (!draggedPiece) return;
+    moves++;
+    updateMoves();
 
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 正位置スナップ判定（グループ内のどれかが合えばグループごと合わせる）
+    const snapDist = Math.max(22, Math.min(pieceW, pieceH) * 0.33);
+    let snapped = false;
+    for (const g of dragGroup) {
+      const d = Math.hypot(g.x - g.tx, g.y - g.ty);
+      if (d < snapDist) {
+        const adjx = g.tx - g.x;
+        const adjy = g.ty - g.y;
+        dragGroup.forEach(q => { q.x += adjx; q.y += adjy; q.isLocked = true; });
+        snapped = true;
+        break;
+      }
+    }
 
-            ctx.fillStyle = "rgba(230,230,230,0.7)";
-            ctx.fillRect(boardX, boardY, puzzleSize, puzzleSize);
+    if (snapped) {
+      const newly = dragGroup.filter(q => q.isLocked).length;
+      lockedCount = pieces.filter(p => p.isLocked).length;
+      playSnap();
+      pulseProgress();
+    }
 
-            ctx.save();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = "rgba(0,0,0,0.2)";
-            pieces.forEach(p => {
-                drawPiecePath(p, p.tx, p.ty);
-                ctx.stroke();
-            });
-            ctx.restore();
+    draggedPiece = null;
+    dragGroup = [];
+    draw();
+    updateProgress();
+    checkClear();
+  }
 
-            if (showHint) {
-                ctx.save();
-                ctx.globalAlpha = 0.35;
-                ctx.drawImage(img, boardX, boardY, puzzleSize, puzzleSize);
-                ctx.restore();
-            }
+  // つながり判定：このバージョンでは「正位置にハマっているピース同士」で簡潔に。
+  // ドラッグするのは単一ピースだが、すでにロックされたピースは盤に固定される。
+  // → 操作をシンプルに保つため、グループは単一ピース。
+  function collectGroup(p) { return [p]; }
 
-            pieces.forEach(p => { if (p.isLocked) drawSinglePiece(p); });
-            pieces.forEach(p => { if (!p.isLocked) drawSinglePiece(p); });
-        }
+  // ============================================================
+  //  進捗・タイマー・カウンタ
+  // ============================================================
+  function updateMoves() { movesText.textContent = moves; }
 
-        // --- 修正ポイント：切り出す元の画像範囲もマージンを計算して拡大して描画する ---
-        function drawSinglePiece(p) {
-            // パズル全体の1つの耳（凸）の最大サイズをマージンとして用意
-            const size = Math.min(p.w, p.h);
-            const maxTabSize = size * 0.25; 
+  function updateProgress() {
+    const total = rows * cols;
+    const done = pieces.filter(p => p.isLocked).length;
+    const pct = total ? (done / total) * 100 : 0;
+    progressBar.style.width = pct + '%';
+    progressLabel.textContent = done + ' / ' + total;
+  }
 
-            ctx.save();
-            // 先に絶対座標にパズルの複雑な外周を描画してクリップ
-            drawPiecePath(p, p.x, p.y);
-            ctx.clip();
-            
-            // クリップした枠の中に写真を描く。
-            // 凸部分（maxTabSize）もカバーできるよう、切り出し元（s系）と描画先（p.x系）の両方を少し広げてマッピングする
-            const imgRatioX = img.width / puzzleSize;
-            const imgRatioY = img.height / puzzleSize;
+  function pulseProgress() {
+    progressBar.animate(
+      [{ filter: 'brightness(1)' }, { filter: 'brightness(1.4)' }, { filter: 'brightness(1)' }],
+      { duration: 360 }
+    );
+  }
 
-            ctx.drawImage(
-                img, 
-                p.sx - maxTabSize * imgRatioX, p.sy - maxTabSize * imgRatioY, // 少し広く切り出す
-                p.sw + maxTabSize * 2 * imgRatioX, p.sh + maxTabSize * 2 * imgRatioY, 
-                p.x - maxTabSize, p.y - maxTabSize, // 少し広く描く
-                p.w + maxTabSize * 2, p.h + maxTabSize * 2
-            );
-            ctx.restore();
+  function startTimer() {
+    clearInterval(timerInterval);
+    startTime = Date.now();
+    timerText.textContent = '00:00';
+    timerInterval = setInterval(() => {
+      const el = Math.floor((Date.now() - startTime) / 1000);
+      timerText.textContent = fmtTime(el);
+    }, 500);
+  }
 
-            // 外枠の線を引く
-            ctx.save();
-            drawPiecePath(p, p.x, p.y);
-            ctx.lineWidth = p.isLocked ? 1 : 2.5; 
-            ctx.strokeStyle = p.isLocked ? "rgba(0,0,0,0.15)" : "#333";
-            ctx.stroke();
-            ctx.restore();
-        }
+  // ============================================================
+  //  クリア判定 & 演出
+  // ============================================================
+  function checkClear() {
+    if (isCleared) return;
+    if (pieces.every(p => p.isLocked)) {
+      isCleared = true;
+      isPlaying = false;
+      clearInterval(timerInterval);
+      const totalSec = Math.floor((Date.now() - startTime) / 1000);
+      showClear(totalSec, moves);
+    }
+  }
 
-        function getMousePos(e) {
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { x: clientX - rect.left, y: clientY - rect.top };
-        }
+  // 星評価：手数とピース数から（少ない手数ほど高評価）
+  function calcStars(totalSec, mv) {
+    const total = rows * cols;
+    const extra = mv - total;           // 最短は total 手
+    if (extra <= Math.ceil(total * 0.3)) return 3;
+    if (extra <= Math.ceil(total * 1.0)) return 2;
+    return 1;
+  }
 
-        function startDrag(e) {
-            if (isCleared) return;
-            const pos = getMousePos(e);
-            for (let i = pieces.length - 1; i >= 0; i--) {
-                const p = pieces[i];
-                if (p.isLocked) continue;
-                const margin = p.w * 0.25;
-                if (pos.x > p.x-margin && pos.x < p.x + p.w+margin && pos.y > p.y-margin && pos.y < p.y + p.h+margin) {
-                    draggedPiece = p;
-                    offsetX = pos.x - p.x;
-                    offsetY = pos.y - p.y;
-                    pieces.push(pieces.splice(i, 1)[0]);
-                    break;
-                }
-            }
-        }
+  // ベスト記録（メモリ内のみ／Googleサイト埋め込みでも安全）
+  const bestRecords = {};
+  function recordKey() { return (customImg ? 'custom' : PICTURES[selectedPicIndex].id) + '-' + rows; }
 
-        function moveDrag(e) {
-            if (!draggedPiece) return;
-            if(e.cancelable) e.preventDefault();
-            const pos = getMousePos(e);
-            draggedPiece.x = pos.x - offsetX;
-            draggedPiece.y = pos.y - offsetY;
-            draw();
-        }
+  function showClear(totalSec, mv) {
+    const stars = calcStars(totalSec, mv);
+    $('clear-time').textContent = fmtTimeKids(totalSec);
+    $('clear-moves').textContent = mv + 'かい';
 
-        function endDrag() {
-            if (!draggedPiece) return;
-            const distance = Math.sqrt(Math.pow(draggedPiece.x - draggedPiece.tx, 2) + Math.pow(draggedPiece.y - draggedPiece.ty, 2));
-            if (distance < 25) {
-                draggedPiece.x = draggedPiece.tx;
-                draggedPiece.y = draggedPiece.ty;
-                draggedPiece.isLocked = true;
-                playSnapSound();
-            }
-            draggedPiece = null;
-            draw();
-            checkClear();
-        }
+    // 星アニメ
+    const starWrap = $('clear-stars');
+    starWrap.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const s = document.createElement('span');
+      s.className = 'star';
+      s.textContent = i < stars ? '⭐' : '☆';
+      s.style.color = i < stars ? '' : '#ddd';
+      starWrap.appendChild(s);
+    }
+    Array.from(starWrap.children).forEach((s, i) => {
+      s.animate(
+        [{ opacity: 0, transform: 'scale(0) rotate(-40deg)' },
+         { opacity: 1, transform: 'scale(1.25) rotate(8deg)' },
+         { opacity: 1, transform: 'scale(1) rotate(0)' }],
+        { duration: 520, delay: 250 + i * 260, fill: 'forwards', easing: 'cubic-bezier(.2,1.4,.4,1)' }
+      );
+    });
 
-        function playSnapSound() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
-                oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                oscillator.start(); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1); oscillator.stop(audioCtx.currentTime + 0.1);
-            } catch(e) {}
-        }
+    // ベスト判定（はじめてのクリアも「きろく」としてお祝い）
+    const key = recordKey();
+    const prev = bestRecords[key];
+    const isNew = !prev || totalSec < prev.sec || (totalSec === prev.sec && mv < prev.mv);
+    if (isNew) bestRecords[key] = { sec: totalSec, mv: mv };
+    $('clear-newbest').style.display = isNew ? 'block' : 'none';
+    updateBestChip();
 
-        function checkClear() {
-            if (pieces.every(p => p.isLocked) && !isCleared) {
-                isCleared = true;
-                clearInterval(timerInterval); 
-                const totalSeconds = Math.floor((Date.now() - startTime) / 1000);
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                if(minutes > 0) {
-                    timeResult.textContent = `かかった時間：${minutes}ふん ${seconds}びょう`;
-                } else {
-                    timeResult.textContent = `かかった時間：${seconds}びょう`;
-                }
-                clearMessage.style.display = 'block';
-            }
-        }
+    clearScreen.style.display = 'flex';
+    fireConfetti();
+    playFanfare(stars);
+  }
 
-        canvas.addEventListener('mousedown', startDrag);
-        window.addEventListener('mousemove', moveDrag);
-        window.addEventListener('mouseup', endDrag);
-        canvas.addEventListener('touchstart', startDrag);
-        canvas.addEventListener('touchmove', moveDrag, { passive: false });
-        canvas.addEventListener('touchend', endDrag);
+  function updateBestChip() {
+    const key = recordKey();
+    const rec = bestRecords[key];
+    if (rec) {
+      chipBest.classList.remove('hidden');
+      bestText.textContent = fmtTime(rec.sec);
+    } else {
+      chipBest.classList.add('hidden');
+    }
+  }
 
-    </script>
+  // ============================================================
+  //  紙吹雪
+  // ============================================================
+  let confettiParts = [];
+  let confettiRAF = null;
+  function fireConfetti() {
+    const cw = gameArea.clientWidth, ch = gameArea.clientHeight;
+    const colors = ['#ff7043', '#ffd54f', '#4fc3f7', '#81c784', '#ba68c8', '#ff8fb3'];
+    confettiParts = [];
+    for (let i = 0; i < 140; i++) {
+      confettiParts.push({
+        x: cw / 2 + (Math.random() - 0.5) * 80,
+        y: ch / 2,
+        vx: (Math.random() - 0.5) * 11,
+        vy: -8 - Math.random() * 9,
+        g: 0.28 + Math.random() * 0.1,
+        size: 6 + Math.random() * 8,
+        color: colors[(Math.random() * colors.length) | 0],
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.3,
+        life: 0
+      });
+    }
+    if (confettiRAF) cancelAnimationFrame(confettiRAF);
+    animateConfetti();
+  }
+  function animateConfetti() {
+    const cw = gameArea.clientWidth, ch = gameArea.clientHeight;
+    cctx.clearRect(0, 0, cw, ch);
+    let alive = false;
+    confettiParts.forEach(p => {
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++;
+      if (p.y < ch + 30) alive = true;
+      cctx.save();
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot);
+      cctx.fillStyle = p.color;
+      cctx.globalAlpha = Math.max(0, 1 - p.life / 150);
+      cctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      cctx.restore();
+    });
+    if (alive) confettiRAF = requestAnimationFrame(animateConfetti);
+    else cctx.clearRect(0, 0, cw, ch);
+  }
+
+  // ============================================================
+  //  サウンド（Web Audio・任意・失敗してもOK）
+  // ============================================================
+  let audioCtx = null;
+  function getAudio() {
+    if (audioCtx === null) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { audioCtx = false; }
+    }
+    return audioCtx;
+  }
+  function beep(freq, dur, type, vol, delay) {
+    const ac = getAudio();
+    if (!ac) return;
+    try {
+      const t0 = ac.currentTime + (delay || 0);
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.type = type || 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      gain.gain.setValueAtTime(vol || 0.12, t0);
+      gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+      osc.start(t0); osc.stop(t0 + dur + 0.02);
+    } catch (e) {}
+  }
+  function playSnap() {
+    beep(720, 0.12, 'sine', 0.13, 0);
+    beep(960, 0.10, 'sine', 0.08, 0.04);
+  }
+  function playFanfare(stars) {
+    const notes = [523, 659, 784, 1046];
+    notes.forEach((n, i) => beep(n, 0.22, 'triangle', 0.12, i * 0.12));
+    if (stars >= 3) beep(1318, 0.4, 'triangle', 0.1, 0.5);
+  }
+
+  // ============================================================
+  //  ヘルプ吹き出し
+  // ============================================================
+  let tipTimer = null;
+  function showTip(msg, ms) {
+    helpTip.textContent = msg;
+    helpTip.classList.add('show');
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => helpTip.classList.remove('show'), ms || 3600);
+  }
+
+  // ============================================================
+  //  お手本ボタン（長押し / トグル両対応）
+  // ============================================================
+  function peekOn() {
+    if (!isPlaying || !img) return;
+    peekActive = true;
+    peekThumb.classList.add('show');
+    draw();
+  }
+  function peekOff() {
+    peekActive = false;
+    peekThumb.classList.remove('show');
+    draw();
+  }
+
+  // ============================================================
+  //  画像のロードと開始
+  // ============================================================
+  function loadImageThen(cb) {
+    if (customImg) {
+      img = customImg; imgIsCanvas = true;
+      currentPicLabel = 'マイしゃしん';
+    } else {
+      const pic = PICTURES[selectedPicIndex];
+      img = makePictureCanvas(pic);
+      imgIsCanvas = true;
+      currentPicLabel = pic.label;
+    }
+    // お手本サムネ用に一度だけ画像URLを用意
+    try { peekImg.src = img.toDataURL ? img.toDataURL('image/jpeg', 0.85) : img.src; }
+    catch (e) { peekImg.removeAttribute('src'); }
+    cb();
+  }
+
+  function beginGame() {
+    rows = cols = getSelectedDifficulty();
+    loadImageThen(() => {
+      startScreen.style.display = 'none';
+      clearScreen.style.display = 'none';
+      updateBestChip();
+      initGame();
+    });
+  }
+
+  // ============================================================
+  //  ボタン配線
+  // ============================================================
+  $('btn-start').addEventListener('click', beginGame);
+
+  $('btn-again').addEventListener('click', () => {
+    clearScreen.style.display = 'none';
+    initGame(); // 同じ絵・同じ難易度でシャッフルし直し
+  });
+
+  $('btn-next-pic').addEventListener('click', () => {
+    if (!customImg) selectedPicIndex = (selectedPicIndex + 1) % PICTURES.length;
+    clearScreen.style.display = 'none';
+    loadImageThen(() => { updateBestChip(); initGame(); });
+  });
+
+  $('btn-clear-home').addEventListener('click', goHome);
+  $('btn-home').addEventListener('click', goHome);
+
+  function goHome() {
+    isPlaying = false;
+    isCleared = false;
+    clearInterval(timerInterval);
+    if (confettiRAF) cancelAnimationFrame(confettiRAF);
+    cctx.clearRect(0, 0, gameArea.clientWidth, gameArea.clientHeight);
+    clearScreen.style.display = 'none';
+    startScreen.style.display = 'flex';
+    refreshPicSelection();
+  }
+
+  $('btn-shuffle').addEventListener('click', () => {
+    if (!isPlaying) return;
+    // 未ロックのピースだけ集め直す（ロック済みはそのまま）
+    const cw = gameArea.clientWidth, ch = gameArea.clientHeight;
+    const free = pieces.filter(p => !p.isLocked);
+    if (!free.length) return;
+    scatterPieces(cw, ch, free);
+    draw();
+    showTip('ピースをあつめたよ！', 1600);
+  });
+
+  // お手本：マウス長押し
+  const btnPeek = $('btn-peek');
+  btnPeek.addEventListener('mousedown', (e) => { e.preventDefault(); peekOn(); });
+  btnPeek.addEventListener('mouseup', peekOff);
+  btnPeek.addEventListener('mouseleave', peekOff);
+  // お手本：タッチ長押し
+  btnPeek.addEventListener('touchstart', (e) => { e.preventDefault(); peekOn(); }, { passive: false });
+  btnPeek.addEventListener('touchend', (e) => { e.preventDefault(); peekOff(); });
+  btnPeek.addEventListener('touchcancel', peekOff);
+  // キーボード対応（押している間）
+  btnPeek.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); peekOn(); } });
+  btnPeek.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); peekOff(); } });
+
+  // ============================================================
+  //  キャンバスイベント
+  // ============================================================
+  canvas.addEventListener('mousedown', startDrag);
+  window.addEventListener('mousemove', moveDrag);
+  window.addEventListener('mouseup', endDrag);
+  canvas.addEventListener('touchstart', startDrag, { passive: false });
+  canvas.addEventListener('touchmove', moveDrag, { passive: false });
+  canvas.addEventListener('touchend', endDrag);
+  canvas.addEventListener('touchcancel', endDrag);
+
+  // リサイズ：盤と全ピースの相対位置を保って再配置
+  let resizeTO = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTO);
+    resizeTO = setTimeout(handleResize, 150);
+  });
+  function handleResize() {
+    if (!isPlaying) { resizeCanvas(); return; }
+    // 旧ボード基準で比率を保存
+    const oldBoardX = boardX, oldBoardY = boardY, oldSize = puzzleSize, oldPW = pieceW, oldPH = pieceH;
+    const rel = pieces.map(p => ({
+      p,
+      rx: oldPW ? (p.x - oldBoardX) / oldSize : 0,
+      ry: oldSize ? (p.y - oldBoardY) / oldSize : 0,
+      locked: p.isLocked
+    }));
+    resizeCanvas();
+    rel.forEach(({ p, rx, ry, locked }) => {
+      p.tx = boardX + p.c * pieceW;
+      p.ty = boardY + p.r * pieceH;
+      if (locked) { p.x = p.tx; p.y = p.ty; }
+      else {
+        p.x = clamp(boardX + rx * puzzleSize, 4, gameArea.clientWidth - pieceW - 4);
+        p.y = clamp(boardY + ry * puzzleSize, 4, gameArea.clientHeight - pieceH - 4);
+      }
+    });
+    draw();
+    updateProgress();
+  }
+
+  // ============================================================
+  //  起動
+  // ============================================================
+  buildPicStrip();
+  resizeCanvas();
+  // スタート画面表示中のうっすらプレビュー描画は不要（白背景）
+
+})();
+
+</script>
 </body>
 </html>
